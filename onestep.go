@@ -64,10 +64,11 @@ func (c *CloudreveClient) UploadPath(req OneStepUploadPathReq) error {
 				}
 			}
 			for _, extension := range req.Extensions {
-				if !strings.HasSuffix(info.Name(), extension) {
-					NotUpload = true
+				if strings.HasSuffix(info.Name(), extension) {
+					NotUpload = false
 					break
 				}
+				NotUpload = true
 			}
 			if !NotUpload {
 				err = c.UploadFile(OneStepUploadFileReq{
