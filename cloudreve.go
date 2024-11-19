@@ -22,10 +22,9 @@ type CloudreveClient struct {
 
 func NewClient(cloudreveUrl, cloudreveSession string) *CloudreveClient {
 	client := &CloudreveClient{
-		cloudreveUrl:     cloudreveUrl,
-		cloudreveSession: cloudreveSession,
-		sessionClient:    initSessionClient(cloudreveUrl),
-		defaultClient:    initDefaultClient(),
+		cloudreveUrl:  cloudreveUrl,
+		sessionClient: initSessionClient(cloudreveUrl),
+		defaultClient: initDefaultClient(),
 	}
 	client.refreshSession(cloudreveSession)
 	return client
@@ -33,12 +32,12 @@ func NewClient(cloudreveUrl, cloudreveSession string) *CloudreveClient {
 
 func NewClientWithRefresh(cloudreveUrl, cloudreveSession string, sessionRefresh SessionRefresh) *CloudreveClient {
 	client := &CloudreveClient{
-		cloudreveUrl:     cloudreveUrl,
-		cloudreveSession: cloudreveSession,
-		sessionClient:    initSessionClient(cloudreveUrl),
-		defaultClient:    initDefaultClient(),
-		sessionRefresh:   sessionRefresh,
+		cloudreveUrl:   cloudreveUrl,
+		sessionClient:  initSessionClient(cloudreveUrl),
+		defaultClient:  initDefaultClient(),
+		sessionRefresh: sessionRefresh,
 	}
+	client.refreshSession(cloudreveSession)
 	_, err := client.Config()
 	if err != nil {
 		panic(err)
