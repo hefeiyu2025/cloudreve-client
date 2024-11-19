@@ -75,12 +75,10 @@ func (c *CloudreveClient) UploadPath(req OneStepUploadPathReq) error {
 					RemotePath: strings.TrimRight(req.RemotePath, "/") + "/" + relPath,
 					PolicyId:   req.PolicyId,
 					Resumable:  req.Resumable,
+					SuccessDel: req.SuccessDel,
 				})
 				if err == nil {
 					if req.SuccessDel {
-						// 上传成功则移除文件了
-						_ = os.Remove(path)
-						fmt.Println("uploaded success and delete", path)
 						dir := filepath.Dir(path)
 						if dir != "." {
 							empty, _ := isEmpty(dir)
@@ -171,6 +169,11 @@ func (c *CloudreveClient) UploadFile(req OneStepUploadFileReq) error {
 	if req.Resumable {
 		_ = DelCache("session_" + md5Key)
 		_ = DelCache("chunk_" + md5Key)
+	}
+	// 上传成功则移除文件了
+	if req.SuccessDel {
+		_ = os.Remove(req.LocalFile)
+		fmt.Println("uploaded success and delete", req.LocalFile)
 	}
 	return nil
 }

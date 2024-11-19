@@ -319,6 +319,7 @@ type OneStepUploadFileReq struct {
 	RemotePath string
 	PolicyId   string
 	Resumable  bool
+	SuccessDel bool
 }
 
 type OneStepUploadPathReq struct {
