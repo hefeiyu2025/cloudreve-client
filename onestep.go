@@ -79,7 +79,7 @@ func (c *CloudreveClient) UploadPath(req OneStepUploadPathReq) error {
 					PolicyId:       req.PolicyId,
 					Resumable:      req.Resumable,
 					SuccessDel:     req.SuccessDel,
-					RemoteTransfer: req.RemoteCallback,
+					RemoteTransfer: req.RemoteTransfer,
 				})
 				if err == nil {
 					if req.SuccessDel {

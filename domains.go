@@ -334,7 +334,7 @@ type OneStepUploadPathReq struct {
 	IgnoreFiles      []string
 	Extensions       []string
 	IgnoreExtensions []string
-	RemoteCallback   func(remotePath, remoteName string) (string, string)
+	RemoteTransfer   func(remotePath, remoteName string) (string, string)
 }
 type DownloadCallback func(localPath, localFile string)
 
