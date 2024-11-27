@@ -4,10 +4,12 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"github.com/imroc/req/v3"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // 汇总方法，一键操作
@@ -72,11 +74,12 @@ func (c *CloudreveClient) UploadPath(req OneStepUploadPathReq) error {
 			}
 			if !NotUpload {
 				err = c.UploadFile(OneStepUploadFileReq{
-					LocalFile:  path,
-					RemotePath: strings.TrimRight(req.RemotePath, "/") + "/" + relPath,
-					PolicyId:   req.PolicyId,
-					Resumable:  req.Resumable,
-					SuccessDel: req.SuccessDel,
+					LocalFile:      path,
+					RemotePath:     strings.TrimRight(req.RemotePath, "/") + "/" + relPath,
+					PolicyId:       req.PolicyId,
+					Resumable:      req.Resumable,
+					SuccessDel:     req.SuccessDel,
+					RemoteTransfer: req.RemoteCallback,
 				})
 				if err == nil {
 					if req.SuccessDel {
@@ -118,6 +121,7 @@ func (c *CloudreveClient) UploadFile(req OneStepUploadFileReq) error {
 		return err
 	}
 	remotePath := strings.TrimLeft(req.RemotePath, "/")
+	remoteName := stat.Name()
 	md5Key := md5Hash(req.LocalFile + remotePath + req.PolicyId)
 	var session UploadCredential
 	if req.Resumable {
@@ -126,11 +130,14 @@ func (c *CloudreveClient) UploadFile(req OneStepUploadFileReq) error {
 			fmt.Println("cache err:", cacheErr)
 		}
 	}
+	if req.RemoteTransfer != nil {
+		remotePath, remoteName = req.RemoteTransfer(remotePath, remoteName)
+	}
 	if session.SessionID == "" {
 		resp, err := c.FileUploadGetUploadSession(CreateUploadSessionReq{
 			Path:         "/" + remotePath,
 			Size:         uint64(stat.Size()),
-			Name:         stat.Name(),
+			Name:         remoteName,
 			PolicyID:     req.PolicyId,
 			LastModified: stat.ModTime().UnixMilli(),
 		})
@@ -202,8 +209,8 @@ func dealError(resumable bool, md5Key, sessionId string, uploaded int64, c *Clou
 
 type RenameDealFunc func(obj Object) string
 
-// RenameDeal 一键重命名
-func (c *CloudreveClient) RenameDeal(path string, fn RenameDealFunc) error {
+// Rename 一键重命名
+func (c *CloudreveClient) Rename(path string, fn RenameDealFunc) error {
 	directory, err := c.ListDirectory("/" + strings.TrimLeft(path, "/"))
 	if err != nil {
 		return err
@@ -211,7 +218,7 @@ func (c *CloudreveClient) RenameDeal(path string, fn RenameDealFunc) error {
 	data := directory.Data
 	for _, object := range data.Objects {
 		if object.Type == "dir" {
-			err := c.RenameDeal(object.Path+"/"+object.Name, fn)
+			err := c.Rename(object.Path+"/"+object.Name, fn)
 			if err != nil {
 				return err
 			}
@@ -232,6 +239,130 @@ func (c *CloudreveClient) RenameDeal(path string, fn RenameDealFunc) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+func (c *CloudreveClient) Download(req OneStepDownloadReq) error {
+	if strings.HasPrefix(req.Remote, ".") {
+		return fmt.Errorf("%s is not start with . ", req.Remote)
+	}
+	baseName := filepath.Base(req.Remote)
+	remotePath := strings.Replace(req.Remote, "/"+baseName, "", 1)
+	if remotePath == "." || remotePath == ".." {
+		remotePath = "/"
+	}
+
+	downloadDir := filepath.Ext(baseName) == ""
+
+	if downloadDir {
+		err := c.downloadDir(req.Remote, req.LocalPath, req.IsParallel, req.SegmentSize, req.DownloadCallback)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	resp, err := c.ListDirectory(remotePath)
+	if err != nil {
+		return err
+	}
+	objectList := resp.Data
+	for _, object := range objectList.Objects {
+		if object.Type == "file" && object.Name == baseName {
+			err = c.downloadFile(object, req.LocalPath, req.IsParallel, req.SegmentSize, req.DownloadCallback)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *CloudreveClient) downloadDir(remotePath, localPath string, isParallel bool, segmentSize int64, callback DownloadCallback) error {
+	fmt.Println("start download dir", remotePath)
+	resp, err := c.ListDirectory(remotePath)
+	if err != nil {
+		return err
+	}
+	objectList := resp.Data
+	for _, object := range objectList.Objects {
+		if object.Type == "dir" {
+			err = c.downloadDir(object.Path+"/"+object.Name, localPath+"/"+object.Name, isParallel, segmentSize, callback)
+			if err != nil {
+				return err
+			}
+		} else {
+
+			err = c.downloadFile(object, localPath, isParallel, segmentSize, callback)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	fmt.Println("end download dir", remotePath)
+	return nil
+}
+
+func (c *CloudreveClient) downloadFile(object Object, localPath string, isParallel bool, segmentSize int64, callback DownloadCallback) error {
+	fmt.Println("start download file", object.Path+"/"+object.Name)
+	outputFile := localPath + "/" + object.Name
+	resp, err := c.FileCreateDownloadSession(object.ID)
+	if err != nil {
+		return err
+	}
+	data := resp.Data
+	err = os.MkdirAll(localPath, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	if isParallel {
+		if segmentSize <= 0 {
+			segmentSize = 1024 * 1024 * 10 // 10MB
+		}
+		err = c.defaultClient.NewParallelDownload(data).
+			SetSegmentSize(segmentSize).
+			SetOutputFile(outputFile).
+			Do()
+		if err != nil {
+			return err
+		}
+	} else {
+		startTime := time.Now()
+		callback := func(info req.DownloadInfo) {
+			if info.Response.Response != nil {
+				totalSize := info.Response.ContentLength
+				downloaded := info.DownloadedSize
+				elapsed := time.Since(startTime).Seconds()
+				var speed float64
+				if elapsed == 0 {
+					speed = float64(downloaded) / 1024
+				} else {
+					speed = float64(downloaded) / 1024 / elapsed // KB/s
+				}
+
+				// 计算进度百分比
+				percent := float64(downloaded) / float64(totalSize) * 100
+				fmt.Printf("\rdownloaded: %.2f%% (%d/%d bytes, %.2f KB/s)", percent, downloaded, totalSize, speed)
+				// 相等即已经处理完毕
+				if downloaded == totalSize {
+					fmt.Println()
+				}
+			}
+		}
+
+		_, err = c.defaultClient.R().
+			SetOutputFile(outputFile).
+			SetDownloadCallback(callback).
+			Get(data)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Println("end download file", object.Path+"/"+object.Name)
+	if callback != nil {
+		abs, _ := filepath.Abs(outputFile)
+		callback(filepath.Dir(abs), abs)
 	}
 	return nil
 }

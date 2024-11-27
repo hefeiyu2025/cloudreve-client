@@ -71,7 +71,7 @@ func TestFileCreateFile(t *testing.T) {
 func TestFileCreateDownloadSession(t *testing.T) {
 	client := beforeClient()
 
-	resp, err := client.FileCreateDownloadSession("mqoRMnTX")
+	resp, err := client.FileCreateDownloadSession("OX9B2Vuz")
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
@@ -253,7 +253,7 @@ func TestObjectGetProperty(t *testing.T) {
 
 func TestOneStepRename(t *testing.T) {
 	client := beforeClient()
-	err := client.RenameDeal("/demo", func(obj Object) string {
+	err := client.Rename("/demo", func(obj Object) string {
 		convert := "11" + obj.Name
 		fmt.Printf("%s --> %s\n", obj.Name, convert)
 		return convert
@@ -278,4 +278,19 @@ func TestOneStepUploadPath(t *testing.T) {
 		SuccessDel:  false,
 	})
 	fmt.Println(err)
+}
+
+func TestDownload(t *testing.T) {
+	client := beforeClient()
+
+	err := client.Download(OneStepDownloadReq{
+		Remote: "/aa", LocalPath: "./aa", IsParallel: false,
+		DownloadCallback: func(localPath, localFile string) {
+			fmt.Println(localFile)
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
 }

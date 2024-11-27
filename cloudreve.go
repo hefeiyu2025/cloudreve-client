@@ -68,7 +68,7 @@ func initSessionClient(cloudreveUrl string) *req.Client {
 }
 
 func initDefaultClient() *req.Client {
-	defaultClient := req.C().SetCommonHeader("User-Agent", defaultUa)
+	defaultClient := req.C().SetCommonHeader("User-Agent", defaultUa).SetTimeout(2 * time.Hour)
 	defaultClient.GetTransport().
 		WrapRoundTripFunc(func(rt http.RoundTripper) req.HttpRoundTripFunc {
 			return func(req *http.Request) (resp *http.Response, err error) {

@@ -315,11 +315,12 @@ type OneDriveUploadReq struct {
 // ----- onestep -----
 
 type OneStepUploadFileReq struct {
-	LocalFile  string
-	RemotePath string
-	PolicyId   string
-	Resumable  bool
-	SuccessDel bool
+	LocalFile      string
+	RemotePath     string
+	PolicyId       string
+	Resumable      bool
+	SuccessDel     bool
+	RemoteTransfer func(remotePath, remoteName string) (string, string)
 }
 
 type OneStepUploadPathReq struct {
@@ -333,4 +334,14 @@ type OneStepUploadPathReq struct {
 	IgnoreFiles      []string
 	Extensions       []string
 	IgnoreExtensions []string
+	RemoteCallback   func(remotePath, remoteName string) (string, string)
+}
+type DownloadCallback func(localPath, localFile string)
+
+type OneStepDownloadReq struct {
+	Remote           string
+	LocalPath        string
+	IsParallel       bool
+	SegmentSize      int64
+	DownloadCallback DownloadCallback
 }
